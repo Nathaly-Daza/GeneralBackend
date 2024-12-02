@@ -69,12 +69,6 @@ class AuthController extends Controller
                 if (Carbon::parse($existingToken->expires_at)->isPast()) {
                     // Eliminar el token expirado
                     DB::table('personal_access_tokens')->where('id', $existingToken->id)->delete();
-                } else {
-                    // Si el token sigue siendo válido, devolver mensaje de sesión activa
-                    return response()->json([
-                        'status' => false,
-                        'message' => "This user already has an active session"
-                    ], 401);
                 }
             }
 
@@ -103,6 +97,7 @@ class AuthController extends Controller
                 'per_document' => $person->per_document,
                 'stu_id' => $stu_id,
                 'token' => $token,
+                'token_id' => $tokenResult->accessToken->id,
                 'token_expiration' => $expiration,
                 'acc_administrator' => $acceso
             ], 200);
@@ -239,10 +234,10 @@ class AuthController extends Controller
     }
 
     // Método para cerrar sesión
-    public function logout(Request $id)
+    public function logout(Request $id, Request $token_id)
     {
         // Eliminar todos los tokens de acceso del usuario
-        $tokens = DB::table('personal_access_tokens')->where('tokenable_id', '=', $id->use_id)->delete();
+        $tokens = DB::table('personal_access_tokens')->where('tokenable_id', '=', $id->use_id)->where('id', '=', $token_id->token_id)->delete();
         return response()->json([
             'status' => true,
             'message' => "logout success."
