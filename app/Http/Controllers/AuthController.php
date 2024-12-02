@@ -7,11 +7,11 @@ use App\Models\Person;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use carbon\Carbon;
 
 class AuthController extends Controller
 {
 
-    // Método para iniciar sesión
     public function login(Request $request, $proj_id)
     {
         // Reglas de validación para los campos de entrada
@@ -23,97 +23,137 @@ class AuthController extends Controller
         // Validar la solicitud de entrada según las reglas definidas
         $validator = Validator::make($request->input(), $rules);
 
-        // Si la validación falla, devolver los errores en formato JSON
         if ($validator->fails()) {
             return response()->json([
-                'status' => False,
+                'status' => false,
                 'message' => $validator->errors()->all()
             ], 400);
-        } else {
+        } 
 
-            // Buscar el usuario por correo electrónico
-            $user = DB::table('users')->where('use_mail', '=', $request->use_mail)->first();
+        // Buscar el usuario por correo electrónico
+        $user = DB::table('users')->where('use_mail', '=', $request->use_mail)->first();
 
-            // Si el usuario no existe, devolver un mensaje de error
-            if ($user == null) {
+        if ($user == null) {
+            return response()->json([
+                'status' => false,
+                'message' => "The user who is trying to login does not exist"
+            ], 401);
+        }
+
+        // Verificar si la contraseña es correcta
+        if ($user->use_password == $request->use_password) {
+            $user = User::find($user->use_id);
+
+            // Obtener el ID del proyecto
+            $project_id = ($request->proj_id === null) ? env('APP_ID') : $request->proj_id;
+
+            $access = DB::select("SELECT access.acc_status FROM access WHERE use_id = $user->use_id AND proj_id = $project_id");
+            $acceso = ($access == null) ? 2 : $access[0]->acc_status;
+            $use_status = $user->use_status;
+
+            if (($access == null && ($proj_id == 6 || $proj_id == 2 || $proj_id == 1)) || $acceso == 0 || $use_status == 0) {
                 return response()->json([
-                    "status" => false,
-                    "message" => "The user who is trying to login does not exist"
+                    'status' => false,
+                    'message' => "The user: " . $user->use_mail . " has no access."
                 ], 401);
             }
 
-            // Verificar si la contraseña es correcta
-            if ($user->use_password == $request->use_password) {
+            $acceso = ($acceso == 2) ? 0 : $acceso;
 
-                // Encontrar el usuario por ID
-                $user = User::find($user->use_id);
-
-                // Obtener el ID del proyecto. Con un ternario, si no se proporciona, se usará el ID de la aplicación
-                $project_id = ($request->proj_id === null) ? env('APP_ID') : $request->proj_id;
-
-                // Buscar el estado de acceso del usuario al proyecto
-                $access = DB::select("SELECT access.acc_status FROM access WHERE use_id = $user->use_id AND proj_id = $project_id");
-
-                //En un ternario, si el acceso está vacio, se le asigna el acceso 2, de otra forma mantiene su acceso
-                $acceso = ($access == null) ? 2 : $access[0]->acc_status;
-                $use_status = $user->use_status;
-
-                // Verificar si el usuario tiene acceso. Debe tener acceso si o si en el proyecto general
-                if (($access == null && ($proj_id == 6||$proj_id==2 || $proj_id == 1)) || $acceso == 0 || $use_status == 0) {
-                    return response()->json([
-                        'status' => False,
-                        'message' => "The user: " . $user->use_mail . " has no access."
-                    ], 401);
-                }
-
-                // Si el acceso es 2, establecerlo a 0 (sin acceso)
-                $acceso = ($acceso == 2) ? 0 : $acceso;
-
-                // Se busca si el usuario ya tiene un token activo y se almacena
-                $tokens = DB::table('personal_access_tokens')->where('tokenable_id', '=', $user->use_id)->get();
-
-                //Se busca el estudiante relacionado el usuario
-                $student = DB::table('viewStudents')->where('per_id', '=', $user->use_id)->get();
-
-                //Con un ternario se almacena el id del primer estudiante si se encontró previamente uno, de otra forma se almacena null
-                $stu_id = ($student != "[]") ? $student[0]->stu_id : null;
-
-                // Verifica si el usuario ya tiene un token activo
-                if ($tokens != "[]") {
+            // Verificar si ya existe un token activo y si ha expirado
+            $existingToken = DB::table('personal_access_tokens')
+                ->where('tokenable_id', $user->use_id)
+                ->first();
+            // Si el token existe y ha expirado, eliminarlo de la base de datos
+            if ($existingToken) {
+                if (Carbon::parse($existingToken->expires_at)->isPast()) {
+                    // Eliminar el token expirado
+                    DB::table('personal_access_tokens')->where('id', $existingToken->id)->delete();
+                } else {
+                    // Si el token sigue siendo válido, devolver mensaje de sesión activa
                     return response()->json([
                         'status' => false,
                         'message' => "This user already has an active session"
                     ], 401);
                 }
-
-
-                $project_id = ($request->proj_id === null) ? env('APP_ID') : $request->proj_id;
-                $person = DB::table('ViewPersons')->where('use_id', '=', $user->use_id)->first();
-
-                // Registrar el evento de inicio de sesión
-                Controller::NewRegisterTrigger("Se logeo un usuario: $user->use_mail", 4, $user->use_id);
-
-
-                // Devolver los datos de inicio de sesión en formato JSON
-                return response()->json([
-                    'status' => True,
-                    'message' => "User login successfully",
-                    'use_id' => $user->use_id,
-                    'per_document' => $person->per_document,
-                    'stu_id' => $stu_id,
-                    'token' => $user->createToken('API TOKEN')->plainTextToken,
-                    'acc_administrator' => $acceso
-                ], 200);
-            } else {
-
-                // Si la contraseña es incorrecta, devolver un mensaje de error
-                return response()->json([
-                    'status' => False,
-                    'message' => "Invalid email or password"
-                ], 401);
             }
+
+            $student = DB::table('viewStudents')->where('per_id', '=', $user->use_id)->get();
+            $stu_id = ($student != "[]") ? $student[0]->stu_id : null;
+            $person = DB::table('ViewPersons')->where('use_id', '=', $user->use_id)->first();
+
+            // Registrar el evento de inicio de sesión
+            Controller::NewRegisterTrigger("Se logeo un usuario: $user->use_mail", 4, $user->use_id);
+
+            // Crear el token con tiempo de expiración
+            $tokenResult = $user->createToken('API TOKEN');
+            $token = $tokenResult->plainTextToken;
+            $expiration = now()->addHour();  // Establecer expiración de 1 hora
+
+            // Guardar la expiración del token en la base de datos
+            DB::table('personal_access_tokens')
+                ->where('id', $tokenResult->accessToken->id)
+                ->update(['expires_at' => $expiration]);
+
+            // Devolver los datos de inicio de sesión en formato JSON
+            return response()->json([
+                'status' => true,
+                'message' => "User login successfully",
+                'use_id' => $user->use_id,
+                'per_document' => $person->per_document,
+                'stu_id' => $stu_id,
+                'token' => $token,
+                'token_expiration' => $expiration,
+                'acc_administrator' => $acceso
+            ], 200);
+        } else {
+            return response()->json([
+                'status' => false,
+                'message' => "Invalid email or password"
+            ], 401);
         }
     }
+
+    // Método para actualizar el token
+    public function refreshToken(Request $request)
+    {
+        $user = $request->user();
+
+        // Verificar si el token actual ha expirado
+        $existingToken = DB::table('personal_access_tokens')
+            ->where('tokenable_id', $user->id)
+            ->where('token', hash('sha256', $request->bearerToken()))
+            ->first();
+
+        if ($existingToken && Carbon::parse($existingToken->expires_at)->isPast()) {
+            // Eliminar el token expirado
+            DB::table('personal_access_tokens')->where('id', $existingToken->id)->delete();
+
+            // Crear un nuevo token con tiempo de expiración
+            $tokenResult = $user->createToken('API TOKEN');
+            $token = $tokenResult->plainTextToken;
+            $expiration = now()->addHour();  // Establecer expiración de 1 hora
+
+            // Guardar la expiración del token en la base de datos
+            DB::table('personal_access_tokens')
+                ->where('id', $tokenResult->accessToken->id)
+                ->update(['expires_at' => $expiration]);
+
+            // Devolver el nuevo token y su expiración en formato JSON
+            return response()->json([
+                'status' => true,
+                'message' => "Token refreshed successfully",
+                'token' => $token,
+                'token_expiration' => $expiration
+            ], 200);
+        }
+
+        return response()->json([
+            'status' => false,
+            'message' => "Token is still valid or user not authenticated"
+        ], 400);
+    }
+
 
     // Método para registrar un nuevo usuario
     public function register($use_id, Request $request)
