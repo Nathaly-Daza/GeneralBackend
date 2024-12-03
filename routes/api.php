@@ -71,11 +71,9 @@ Route::fallback(function () {
     ], 404);
 });
 
-// Refresh token en caso de que el token haya expirado
-Route::middleware('auth:sanctum')->post('refresh-token', [AuthController::class, 'refreshToken']);
 
 //===============NO QUITAR EL MIDDLEWARE================================
-Route::middleware(['auth:sanctum','checkTokenExpiry'])->group(function() {
+Route::middleware(['auth:sanctum'])->group(function() {
     Route::resource('access', AccessController::class)->names('access')->parameter('','access');
     Route::resource('activity', ActivityController::class)->names('activity')->parameter('','activity');
     Route::resource('areas', AreaController::class)->names('areas')->parameter('','areas');

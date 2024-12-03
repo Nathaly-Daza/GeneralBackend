@@ -51,7 +51,7 @@ class AuthController extends Controller
             $acceso = ($access == null) ? 2 : $access[0]->acc_status;
             $use_status = $user->use_status;
 
-            if (($access == null && ($proj_id == 6 || $proj_id == 2 || $proj_id == 1)) || $acceso == 0 || $use_status == 0) {
+            if (($access == null && ($proj_id == 6 || $proj_id == 2 || $proj_id == 1 || $proj_id == 7)) || $acceso == 0 || $use_status == 0) {
                 return response()->json([
                     'status' => false,
                     'message' => "The user: " . $user->use_mail . " has no access."
@@ -99,7 +99,8 @@ class AuthController extends Controller
                 'token' => $token,
                 'token_id' => $tokenResult->accessToken->id,
                 'token_expiration' => $expiration,
-                'acc_administrator' => $acceso
+                'acc_administrator' => $acceso,
+                'projec_id' => $proj_id
             ], 200);
         } else {
             return response()->json([
