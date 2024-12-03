@@ -234,10 +234,12 @@ class AuthController extends Controller
     }
 
     // Método para cerrar sesión
-    public function logout(Request $id, Request $token_id)
+    public function logout(Request $request)
     {
+        $id = $request->input('use_id');
+        $token_id = $request->input('token_id');
         // Eliminar todos los tokens de acceso del usuario
-        $tokens = DB::table('personal_access_tokens')->where('tokenable_id', '=', $id->use_id)->where('id', '=', $token_id->token_id)->delete();
+        $tokens = DB::table('personal_access_tokens')->where('tokenable_id', '=', $id)->where('id', '=', $token_id)->delete();
         return response()->json([
             'status' => true,
             'message' => "logout success."
