@@ -28,7 +28,7 @@ class AuthController extends Controller
                 'status' => false,
                 'message' => $validator->errors()->all()
             ], 400);
-        } 
+        }
 
         // Buscar el usuario por correo electrónico
         $user = DB::table('users')->where('use_mail', '=', $request->use_mail)->first();
@@ -82,7 +82,7 @@ class AuthController extends Controller
             // Crear el token con tiempo de expiración
             $tokenResult = $user->createToken('API TOKEN');
             $token = $tokenResult->plainTextToken;
-            $expiration = now()->addHour();  // Establecer expiración de 1 hora
+            $expiration = now()->addMinutes(2);  // Establecer expiración de 20 minutos
 
             // Guardar la expiración del token en la base de datos
             DB::table('personal_access_tokens')
@@ -255,7 +255,7 @@ class AuthController extends Controller
         if ($request->hasFile('file')) {
             $file = $request->file('file');
 
-             // Almacenar el archivo en la carpeta 'csv'
+            // Almacenar el archivo en la carpeta 'csv'
             $file->storeAs('csv', $file->getClientOriginalName());
 
             // Leer los datos del archivo CSV
