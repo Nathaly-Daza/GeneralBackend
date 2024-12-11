@@ -82,7 +82,7 @@ class AuthController extends Controller
             // Crear el token con tiempo de expiración
             $tokenResult = $user->createToken('API TOKEN');
             $token = $tokenResult->plainTextToken;
-            $expiration = now()->addMinutes(2);  // Establecer expiración de 20 minutos
+            $expiration = now()->addHours(24);  // Establecer expiración de 20 minutos
 
             // Guardar la expiración del token en la base de datos
             DB::table('personal_access_tokens')
